@@ -20,17 +20,18 @@ import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
 import com.alibaba.nacos.common.JustForTest;
 import com.alibaba.nacos.common.notify.listener.SmartSubscriber;
 import com.alibaba.nacos.common.notify.listener.Subscriber;
+import com.alibaba.nacos.common.spi.NacosServiceLoader;
 import com.alibaba.nacos.common.utils.BiFunction;
 import com.alibaba.nacos.common.utils.ClassUtils;
-import com.alibaba.nacos.common.utils.MapUtils;
+import com.alibaba.nacos.common.utils.MapUtil;
 import com.alibaba.nacos.common.utils.ThreadUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -75,8 +76,8 @@ public class NotifyCenter {
         String shareBufferSizeProperty = "nacos.core.notify.share-buffer-size";
         shareBufferSize = Integer.getInteger(shareBufferSizeProperty, 1024);
         
-        final ServiceLoader<EventPublisher> loader = ServiceLoader.load(EventPublisher.class);
-        Iterator<EventPublisher> iterator = loader.iterator();
+        final Collection<EventPublisher> publishers = NacosServiceLoader.load(EventPublisher.class);
+        Iterator<EventPublisher> iterator = publishers.iterator();
         
         if (iterator.hasNext()) {
             clazz = iterator.next().getClass();
@@ -93,7 +94,7 @@ public class NotifyCenter {
                     publisher.init(cls, buffer);
                     return publisher;
                 } catch (Throwable ex) {
-                    LOGGER.error("Service class newInstance has error : {}", ex);
+                    LOGGER.error("Service class newInstance has error : ", ex);
                     throw new NacosRuntimeException(SERVER_ERROR, ex);
                 }
             }
@@ -106,7 +107,7 @@ public class NotifyCenter {
             INSTANCE.sharePublisher.init(SlowEvent.class, shareBufferSize);
             
         } catch (Throwable ex) {
-            LOGGER.error("Service class newInstance has error : {}", ex);
+            LOGGER.error("Service class newInstance has error : ", ex);
         }
         
         ThreadUtils.addShutdownHook(new Runnable() {
@@ -136,7 +137,7 @@ public class NotifyCenter {
     }
     
     /**
-     * Shutdown the serveral publisher instance which notifycenter has.
+     * Shutdown the several publisher instance which notify center has.
      */
     public static void shutdown() {
         if (!CLOSED.compareAndSet(false, true)) {
@@ -149,14 +150,14 @@ public class NotifyCenter {
                 EventPublisher eventPublisher = entry.getValue();
                 eventPublisher.shutdown();
             } catch (Throwable e) {
-                LOGGER.error("[EventPublisher] shutdown has error : {}", e);
+                LOGGER.error("[EventPublisher] shutdown has error : ", e);
             }
         }
         
         try {
             INSTANCE.sharePublisher.shutdown();
         } catch (Throwable e) {
-            LOGGER.error("[SharePublisher] shutdown has error : {}", e);
+            LOGGER.error("[SharePublisher] shutdown has error : ", e);
         }
         
         LOGGER.warn("[NotifyCenter] Destruction of the end");
@@ -205,7 +206,7 @@ public class NotifyCenter {
         final String topic = ClassUtils.getCanonicalName(subscribeType);
         synchronized (NotifyCenter.class) {
             // MapUtils.computeIfAbsent is a unsafe method.
-            MapUtils.computeIfAbsent(INSTANCE.publisherMap, topic, publisherFactory, subscribeType, ringBufferSize);
+            MapUtil.computeIfAbsent(INSTANCE.publisherMap, topic, publisherFactory, subscribeType, ringBufferSize);
         }
         EventPublisher publisher = INSTANCE.publisherMap.get(topic);
         publisher.addSubscriber(consumer);
@@ -268,7 +269,7 @@ public class NotifyCenter {
         try {
             return publishEvent(event.getClass(), event);
         } catch (Throwable ex) {
-            LOGGER.error("There was an exception to the message publishing : {}", ex);
+            LOGGER.error("There was an exception to the message publishing : ", ex);
             return false;
         }
     }
@@ -318,7 +319,7 @@ public class NotifyCenter {
         final String topic = ClassUtils.getCanonicalName(eventType);
         synchronized (NotifyCenter.class) {
             // MapUtils.computeIfAbsent is a unsafe method.
-            MapUtils.computeIfAbsent(INSTANCE.publisherMap, topic, publisherFactory, eventType, queueMaxSize);
+            MapUtil.computeIfAbsent(INSTANCE.publisherMap, topic, publisherFactory, eventType, queueMaxSize);
         }
         return INSTANCE.publisherMap.get(topic);
     }
@@ -334,7 +335,7 @@ public class NotifyCenter {
         try {
             publisher.shutdown();
         } catch (Throwable ex) {
-            LOGGER.error("There was an exception when publisher shutdown : {}", ex);
+            LOGGER.error("There was an exception when publisher shutdown : ", ex);
         }
     }
     
